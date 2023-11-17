@@ -4,4 +4,5 @@ keboola.http-client
 mock
 freezegun
 snowflake-connector-python
+pandas
 
