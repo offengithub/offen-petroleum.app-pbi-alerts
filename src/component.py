@@ -2,75 +2,126 @@
 Template Component main class.
 
 """
-import csv
+import json
+import os 
 import logging
-from datetime import datetime
-
-from keboola.component.base import ComponentBase
+import requests
+import xml.etree.ElementTree as ET
 from keboola.component.exceptions import UserException
+from keboola.component.base import ComponentBase
+import json 
+from datetime import date,datetime, timezone, timedelta
+import datetime
+import snowflake.connector
+import pandas as pd
+import requests
+import json
+
+
 
 # configuration variables
-KEY_API_TOKEN = '#api_token'
-KEY_PRINT_HELLO = 'print_hello'
+KEY_SNOWFLAKE_ACCOUNT = 'account'
+KEY_SNOWFLAKE_USER = 'username'
+KEY_SNOWFLAKE_PASSWORD = 'password'
+KEY_SNOWFLAKE_WAREHOUSE= 'warehouse'
+KEY_SNOWFLAKE_DATABASE = 'database'
+KEY_SNOWFLAKE_SCHEMA = 'schema'
+KEY_TABLE_NAME='table_name'
+KEY_WEBHOOK_URL='webhook_url'
+
 
 # list of mandatory parameters => if some is missing,
 # component will fail with readable message on initialization.
-REQUIRED_PARAMETERS = [KEY_PRINT_HELLO]
+REQUIRED_PARAMETERS = [KEY_SNOWFLAKE_ACCOUNT,KEY_SNOWFLAKE_DATABASE,KEY_SNOWFLAKE_WAREHOUSE,KEY_WEBHOOK_URL,KEY_SNOWFLAKE_SCHEMA,
+                       KEY_SNOWFLAKE_PASSWORD,KEY_SNOWFLAKE_USER, KEY_TABLE_NAME]
 REQUIRED_IMAGE_PARS = []
 
 
+
+
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+logger = logging.getLogger(__name__)
+
+
+def post_to_teams(webhook_url, message):
+    """
+    Post a message to Microsoft Teams.
+    :param webhook_url: The webhook URL provided by Microsoft Teams.
+    :param message: The message to be posted.
+    """
+    headers = {
+        'Content-Type': 'application/json'
+    }
+    payload = {
+        'text': message
+    }
+    response = requests.post(webhook_url, headers=headers, data=json.dumps(payload))
+    if response.status_code != 200:
+        raise ValueError(f"Request to Teams returned an error {response.status_code}, the response is:\n{response.text}")
+
+
+def query_snowflake(account,user, password,warehouse,database, schema, table):
+    conn = snowflake.connector.connect(
+    user=user,
+    password=password,
+    account=account,
+    warehouse=warehouse,
+    database=database,
+    schema=schema
+    )
+    # Query to check for records from yesterday
+    today = datetime.datetime.now().date()
+    query = f"""
+    SELECT *
+    FROM {table}
+    WHERE alert_date = '{today}'
+    """
+    df = pd.read_sql(query, conn)
+    conn.close()
+    return df
+
+
+
 class Component(ComponentBase):
-    """
-        Extends base class for general Python components. Initializes the CommonInterface
-        and performs configuration validation.
-
-        For easier debugging the data folder is picked up by default from `../data` path,
-        relative to working directory.
-
-        If `debug` parameter is present in the `config.json`, the default logger is set to verbose DEBUG mode.
-    """
 
     def __init__(self):
         super().__init__()
 
-    def run(self):
-        """
-        Main execution code
+    def run(self) -> None:
+        job_status = None
+
+        """Runs the component.
+        Validates the configuration parameters and triggers a Boomi job.
         """
 
-        # ####### EXAMPLE TO REMOVE
-        # check for missing configuration parameters
+       # check for missing configuration parameters
         self.validate_configuration_parameters(REQUIRED_PARAMETERS)
-        self.validate_image_parameters(REQUIRED_IMAGE_PARS)
-        params = self.configuration.parameters
-        # Access parameters in data/config.json
-        if params.get(KEY_PRINT_HELLO):
-            logging.info("Hello World")
 
-        # get last state data/in/state.json from previous run
-        previous_state = self.get_state_file()
-        logging.info(previous_state.get('some_state_parameter'))
+        
+        account = self.configuration.parameters.get(KEY_SNOWFLAKE_ACCOUNT)
+        username = self.configuration.parameters.get(KEY_SNOWFLAKE_USER)
+        password = self.configuration.parameters.get(KEY_SNOWFLAKE_PASSWORD)
+        database = self.configuration.parameters.get(KEY_SNOWFLAKE_DATABASE)
+        schema = self.configuration.parameters.get(KEY_SNOWFLAKE_SCHEMA)
+        webhook_url=self.configuration.parameters.get(KEY_WEBHOOK_URL)
+        table_name=self.configuration.parameters.get(KEY_TABLE_NAME)
+        warehouse=self.configuration.parameters.get(KEY_SNOWFLAKE_WAREHOUSE)
 
-        # Create output table (Tabledefinition - just metadata)
-        table = self.create_out_table_definition('output.csv', incremental=True, primary_key=['timestamp'])
+        # Check if there are records and send an email
+        df=query_snowflake(account, username, password,warehouse,database, schema, table_name)
+        logging.info("connecting to snowflake database")
+        today=date.today()
 
-        # get file path of the table (data/out/tables/Features.csv)
-        out_table_path = table.full_path
-        logging.info(out_table_path)
-
-        # DO whatever and save into out_table_path
-        with open(table.full_path, mode='wt', encoding='utf-8', newline='') as out_file:
-            writer = csv.DictWriter(out_file, fieldnames=['timestamp'])
-            writer.writeheader()
-            writer.writerow({"timestamp": datetime.now().isoformat()})
-
-        # Save table manifest (output.csv.manifest) from the tabledefinition
-        self.write_manifest(table)
-
-        # Write new state - will be available next run
-        self.write_state_file({"some_state_parameter": "value"})
-
-        # ####### EXAMPLE TO REMOVE END
+        if not df.empty:
+            for index, row in df.iterrows():
+                # Getting date and measure to send to notification channel
+                alert_type = row['MEASURE']
+                message_body = f"This is to notify you that, {alert_type} occured today {today}"
+                logging.info(message_body)
+                post_to_teams(webhook_url, message_body)
+         
 
 
 """
@@ -78,12 +129,14 @@ class Component(ComponentBase):
 """
 if __name__ == "__main__":
     try:
+        #logging.info("Component started")
         comp = Component()
+    
         # this triggers the run method by default and is controlled by the configuration.action parameter
         comp.execute_action()
     except UserException as exc:
-        logging.exception(exc)
+        logging.exception("User configuration error: %s", exc)
         exit(1)
     except Exception as exc:
-        logging.exception(exc)
+        logging.exception("Unexpected error: %s", exc)
         exit(2)

@@ -2,18 +2,49 @@
   "type": "object",
   "title": "extractor configuration",
   "required": [
-    "print_hello"
+    "webhook_url",
+    "account",
+    "username",
+    "password",
+    "database",
+    "schema",
+    "warehouse"
   ],
   "properties": {
-    "print_hello": {
-      "type": "boolean",
-      "title": "Print Hello",
+    "account": {
+      "type": "string",
+      "title": "Account Identifier",
       "propertyOrder": 1
     },
-    "debug": {
-      "type": "boolean",
-      "title": "Debug",
+    "Username": {
+      "type": "string",
+      "title": "username",
       "propertyOrder": 2
+    },
+    "password": {
+      "type": "string",
+      "title": "password",
+      "propertyOrder": 3
+    },
+    "database": {
+      "type": "string",
+      "title": "database name",
+      "propertyOrder": 4
+    },
+    "schema": {
+      "type": "string",
+      "title": "schemaname",
+      "propertyOrder": 5
+    },
+    "webhook_url": {
+      "type": "string",
+      "title": "webhook message channel",
+      "propertyOrder": 6
+    },
+    "warehouse": {
+      "type": "string",
+      "title": "warehouse",
+      "propertyOrder": 7
     }
   }
 }
