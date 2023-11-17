@@ -90,7 +90,6 @@ class Component(ComponentBase):
         super().__init__()
 
     def run(self) -> None:
-        job_status = None
 
         """Runs the component.
         Validates the configuration parameters and triggers a Boomi job.
@@ -98,8 +97,6 @@ class Component(ComponentBase):
 
        # check for missing configuration parameters
         self.validate_configuration_parameters(REQUIRED_PARAMETERS)
-
-        
         account = self.configuration.parameters.get(KEY_SNOWFLAKE_ACCOUNT)
         username = self.configuration.parameters.get(KEY_SNOWFLAKE_USER)
         password = self.configuration.parameters.get(KEY_SNOWFLAKE_PASSWORD)
@@ -110,8 +107,15 @@ class Component(ComponentBase):
         warehouse=self.configuration.parameters.get(KEY_SNOWFLAKE_WAREHOUSE)
 
         # Check if there are records and send an email
-        df=query_snowflake(account, username, password,warehouse,database, schema, table_name)
-        logging.info("connecting to snowflake database")
+        try:
+            df = query_snowflake(account, username, password, warehouse, database, schema, table_name)
+        except Exception as e:
+            logging.error(f"An error occurred: {e}")
+        else:
+            logging.info("Successfully connected to the Snowflake database and executed the query.")
+        finally:
+            logging.info("Finished attempting to connect and query the Snowflake database.")
+
         today=date.today()
 
         if not df.empty:

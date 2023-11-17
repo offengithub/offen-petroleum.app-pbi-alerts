@@ -8,15 +8,16 @@
     "password",
     "database",
     "schema",
-    "warehouse"
+    "warehouse",
+    "table_name"
   ],
   "properties": {
     "account": {
       "type": "string",
-      "title": "Account Identifier",
+      "title": "account",
       "propertyOrder": 1
     },
-    "Username": {
+    "username": {
       "type": "string",
       "title": "username",
       "propertyOrder": 2
@@ -28,23 +29,28 @@
     },
     "database": {
       "type": "string",
-      "title": "database name",
+      "title": "database",
       "propertyOrder": 4
     },
     "schema": {
       "type": "string",
-      "title": "schemaname",
+      "title": "schema",
       "propertyOrder": 5
     },
     "webhook_url": {
       "type": "string",
-      "title": "webhook message channel",
+      "title": "webhook_url",
       "propertyOrder": 6
     },
     "warehouse": {
       "type": "string",
       "title": "warehouse",
       "propertyOrder": 7
+    },
+    "table_name": {
+      "type": "string",
+      "title": "table_name",
+      "propertyOrder": 8
     }
   }
 }
